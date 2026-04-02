@@ -1,10 +1,6 @@
-/**
- * ListCard component - displays individual shopping list with actions
- */
-
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
-import { ShoppingList, AppContextType } from '../types';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { ShoppingList } from '../types';
 import { COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../styles/theme';
 import { countCompletedTasks } from '../utils/helpers';
 import { Card } from './Card';
@@ -29,19 +25,10 @@ export const ListCard: React.FC<ListCardProps> = ({
   const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
   const handleDelete = () => {
-    const deleteAlert = () => onDelete(list.id);
-
-    if (Platform.OS === 'ios') {
-      Alert.alert('Delete List', 'Are you sure you want to delete this list?', [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
-        { text: 'Delete', onPress: deleteAlert, style: 'destructive' },
-      ]);
-    } else {
-      Alert.alert('Delete List', 'Are you sure you want to delete this list?', [
-        { text: 'Cancel', onPress: () => {} },
-        { text: 'Delete', onPress: deleteAlert, style: 'destructive' },
-      ]);
-    }
+    Alert.alert('Delete List', 'Are you sure you want to delete this list?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', onPress: () => onDelete(list.id), style: 'destructive' },
+    ]);
   };
 
   return (
@@ -49,22 +36,19 @@ export const ListCard: React.FC<ListCardProps> = ({
       activeOpacity={0.7}
       onPress={() => onPress(list.id)}
       style={styles.touchable}
+      accessibilityRole="button"
+      accessibilityLabel={`Open list ${list.title}`}
     >
       <Card variant="elevated">
         <View style={styles.header}>
           <View style={styles.titleContainer}>
             <Text
-              style={[
-                styles.title,
-                list.completed && styles.completedTitle,
-              ]}
+              style={[styles.title, list.completed && styles.completedTitle]}
               numberOfLines={2}
             >
               {list.title}
             </Text>
-            <Text style={styles.taskCount}>
-              {completedTasks}/{totalTasks} tasks
-            </Text>
+            <Text style={styles.taskCount}>{completedTasks}/{totalTasks} tasks</Text>
           </View>
 
           {list.completed && (
@@ -74,7 +58,6 @@ export const ListCard: React.FC<ListCardProps> = ({
           )}
         </View>
 
-        {/* Progress bar */}
         {totalTasks > 0 && (
           <View style={styles.progressContainer}>
             <View style={styles.progressBarBackground}>
@@ -91,11 +74,12 @@ export const ListCard: React.FC<ListCardProps> = ({
           </View>
         )}
 
-        {/* Action buttons */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.editButton]}
             onPress={() => onEdit(list.id)}
+            accessibilityRole="button"
+            accessibilityLabel="Edit list"
           >
             <Text style={styles.actionButtonText}>✏️</Text>
           </TouchableOpacity>
@@ -103,15 +87,17 @@ export const ListCard: React.FC<ListCardProps> = ({
           <TouchableOpacity
             style={[styles.actionButton, styles.completeButton]}
             onPress={() => onToggleComplete(list.id)}
+            accessibilityRole="button"
+            accessibilityLabel={list.completed ? 'Mark as incomplete' : 'Mark as complete'}
           >
-            <Text style={styles.actionButtonText}>
-              {list.completed ? '↩️' : '✔'}
-            </Text>
+            <Text style={styles.actionButtonText}>{list.completed ? '↩️' : '✔'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
             onPress={handleDelete}
+            accessibilityRole="button"
+            accessibilityLabel="Delete list"
           >
             <Text style={styles.actionButtonText}>🗑️</Text>
           </TouchableOpacity>
@@ -138,7 +124,6 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.white,
     ...TYPOGRAPHY.h4,
-    fontWeight: '600',
   },
   completedTitle: {
     textDecorationLine: 'line-through',
@@ -159,6 +144,7 @@ const styles = StyleSheet.create({
   },
   completeBadgeText: {
     fontSize: 16,
+    color: COLORS.white,
   },
   progressContainer: {
     marginBottom: SPACING.md,

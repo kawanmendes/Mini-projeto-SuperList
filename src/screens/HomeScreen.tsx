@@ -1,36 +1,26 @@
-/**
- * HomeScreen - Main screen displaying all shopping lists
- */
-
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  ListRenderItemInfo,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
-import { useShoppingLists } from '../hooks/useShoppingLists';
+import { RootStackParamList, ShoppingList } from '../types';
+import { useShoppingListsContext } from '../context/ShoppingListsContext';
 import { Button, ListCard, FAB, EmptyState } from '../components';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../styles/theme';
 import { TextInput } from '../components/TextInput';
+import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../styles/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const {
-    lists,
-    isLoading,
-    addList,
-    deleteList,
-    updateList,
-    toggleListComplete,
-  } = useShoppingLists();
+  const { lists, isLoading, loadError, addList, deleteList, updateList, toggleListComplete } =
+    useShoppingListsContext();
 
   const [showNewListForm, setShowNewListForm] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
@@ -58,14 +48,10 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const handleNavigateToList = (listId: string) => {
-    navigation.navigate('ListDetails', { listId });
-  };
-
-  const renderListCard = ({ item }: { item: any }) => (
+  const renderListCard = ({ item }: ListRenderItemInfo<ShoppingList>) => (
     <ListCard
       list={item}
-      onPress={handleNavigateToList}
+      onPress={(id) => navigation.navigate('ListDetails', { listId: id })}
       onEdit={(id) => handleEditList(id, item.title)}
       onDelete={deleteList}
       onToggleComplete={toggleListComplete}
@@ -75,20 +61,22 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
+        <View style={styles.centered}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const renderEmptyState = () => (
-    <EmptyState
-      icon="📋"
-      title="No Lists Yet"
-      description="Create your first shopping list by tapping the + button below"
-    />
-  );
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{loadError}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -104,75 +92,70 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {editingId && (
-          <View style={styles.editContainer}>
-            <Text style={styles.editLabel}>Editing list title:</Text>
+          <View style={styles.formContainer}>
+            <Text style={styles.formLabel}>Editing list title:</Text>
             <TextInput
               value={editingTitle}
               onChangeText={setEditingTitle}
               placeholder="Enter new title..."
-            />
-            <View style={styles.editActions}>
-              <Button
-                title="Cancel"
-                variant="secondary"
-                size="small"
-                onPress={() => {
-                  setEditingId(null);
-                  setEditingTitle('');
-                }}
-              />
-              <Button
-                title="Save"
-                size="small"
-                onPress={handleSaveEdit}
-              />
-            </View>
-          </View>
-        )}
-
-        {showNewListForm && !editingId && (
-          <View style={styles.newListContainer}>
-            <TextInput
-              value={newListTitle}
-              onChangeText={setNewListTitle}
-              placeholder="Enter list name..."
-              label="New List"
-              maxLength={50}
+              onSubmitEditing={handleSaveEdit}
             />
             <View style={styles.formActions}>
               <Button
                 title="Cancel"
                 variant="secondary"
                 size="small"
-                onPress={() => {
-                  setShowNewListForm(false);
-                  setNewListTitle('');
-                }}
+                onPress={() => { setEditingId(null); setEditingTitle(''); }}
               />
+              <Button title="Save" size="small" onPress={handleSaveEdit} />
+            </View>
+          </View>
+        )}
+
+        {showNewListForm && !editingId && (
+          <View style={styles.formContainer}>
+            <TextInput
+              value={newListTitle}
+              onChangeText={setNewListTitle}
+              placeholder="Enter list name..."
+              label="New List"
+              maxLength={50}
+              onSubmitEditing={handleAddList}
+            />
+            <View style={styles.formActions}>
               <Button
-                title="Create"
+                title="Cancel"
+                variant="secondary"
                 size="small"
-                onPress={handleAddList}
+                onPress={() => { setShowNewListForm(false); setNewListTitle(''); }}
               />
+              <Button title="Create" size="small" onPress={handleAddList} />
             </View>
           </View>
         )}
 
         {lists.length === 0 ? (
-          renderEmptyState()
+          <EmptyState
+            icon="📋"
+            title="No Lists Yet"
+            description="Create your first shopping list by tapping the + button below"
+          />
         ) : (
-          <FlatList
+          <FlatList<ShoppingList>
             data={lists}
             renderItem={renderListCard}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
-            scrollEnabled={true}
           />
         )}
       </KeyboardAvoidingView>
 
       {!showNewListForm && !editingId && (
-        <FAB onPress={() => setShowNewListForm(true)} icon="+" />
+        <FAB
+          onPress={() => setShowNewListForm(true)}
+          icon="+"
+          accessibilityLabel="Create new list"
+        />
       )}
     </SafeAreaView>
   );
@@ -186,7 +169,7 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  loadingContainer: {
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -194,6 +177,12 @@ const styles = StyleSheet.create({
   loadingText: {
     color: COLORS.gray,
     ...TYPOGRAPHY.body,
+  },
+  errorText: {
+    color: COLORS.error,
+    ...TYPOGRAPHY.body,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.lg,
   },
   header: {
     paddingHorizontal: SPACING.lg,
@@ -204,14 +193,13 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.white,
     ...TYPOGRAPHY.h2,
-    fontWeight: '700',
   },
   subtitle: {
     color: COLORS.gray,
     ...TYPOGRAPHY.bodySmall,
     marginTop: SPACING.xs,
   },
-  newListContainer: {
+  formContainer: {
     backgroundColor: COLORS.cardBg,
     marginHorizontal: SPACING.lg,
     marginVertical: SPACING.md,
@@ -221,17 +209,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.primary,
   },
-  editContainer: {
-    backgroundColor: COLORS.cardBg,
-    marginHorizontal: SPACING.lg,
-    marginVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.primaryLight,
-  },
-  editLabel: {
+  formLabel: {
     color: COLORS.gray,
     ...TYPOGRAPHY.bodySmall,
     marginBottom: SPACING.sm,
@@ -242,15 +220,8 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     marginTop: SPACING.md,
   },
-  editActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: SPACING.md,
-    marginTop: SPACING.md,
-  },
   listContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    gap: SPACING.sm,
   },
 });

@@ -1,7 +1,3 @@
-/**
- * Custom hook for managing shopping lists state with AsyncStorage persistence
- */
-
 import { useEffect, useState, useCallback } from 'react';
 import { ShoppingList, Task } from '../types';
 import { StorageService } from '../utils/storage';
@@ -10,57 +6,42 @@ import { generateUUID } from '../utils/helpers';
 export const useShoppingLists = () => {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Load lists from storage on mount
   useEffect(() => {
     const loadData = async () => {
-      setIsLoading(true);
       try {
         const loadedLists = await StorageService.loadLists();
         setLists(loadedLists);
-      } catch (error) {
-        console.error('Failed to load lists:', error);
+      } catch {
+        setLoadError('Failed to load your lists. Please restart the app.');
       } finally {
         setIsLoading(false);
       }
     };
-
     loadData();
   }, []);
 
-  // Save lists to storage whenever they change
   useEffect(() => {
     if (!isLoading) {
-      StorageService.saveLists(lists);
+      StorageService.saveLists(lists).catch((err) =>
+        console.error('Failed to persist lists:', err)
+      );
     }
   }, [lists, isLoading]);
 
-  /**
-   * Add a new shopping list
-   */
   const addList = useCallback((title: string) => {
-    const newList: ShoppingList = {
-      id: generateUUID(),
-      title,
-      tasks: [],
-      completed: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    setLists((prev) => [newList, ...prev]);
+    const now = Date.now();
+    setLists((prev) => [
+      { id: generateUUID(), title, tasks: [], completed: false, createdAt: now, updatedAt: now },
+      ...prev,
+    ]);
   }, []);
 
-  /**
-   * Delete a shopping list
-   */
   const deleteList = useCallback((id: string) => {
     setLists((prev) => prev.filter((list) => list.id !== id));
   }, []);
 
-  /**
-   * Update list title
-   */
   const updateList = useCallback((id: string, title: string) => {
     setLists((prev) =>
       prev.map((list) =>
@@ -69,40 +50,23 @@ export const useShoppingLists = () => {
     );
   }, []);
 
-  /**
-   * Toggle list completed status
-   */
   const toggleListComplete = useCallback((id: string) => {
     setLists((prev) =>
       prev.map((list) =>
         list.id === id
-          ? {
-              ...list,
-              completed: !list.completed,
-              updatedAt: Date.now(),
-            }
+          ? { ...list, completed: !list.completed, updatedAt: Date.now() }
           : list
       )
     );
   }, []);
 
-  /**
-   * Add a task to a list
-   */
   const addTask = useCallback((listId: string, task: Omit<Task, 'id' | 'createdAt'>) => {
     setLists((prev) =>
       prev.map((list) =>
         list.id === listId
           ? {
               ...list,
-              tasks: [
-                {
-                  ...task,
-                  id: generateUUID(),
-                  createdAt: Date.now(),
-                },
-                ...list.tasks,
-              ],
+              tasks: [{ ...task, id: generateUUID(), createdAt: Date.now() }, ...list.tasks],
               updatedAt: Date.now(),
             }
           : list
@@ -110,26 +74,16 @@ export const useShoppingLists = () => {
     );
   }, []);
 
-  /**
-   * Delete a task from a list
-   */
   const deleteTask = useCallback((listId: string, taskId: string) => {
     setLists((prev) =>
       prev.map((list) =>
         list.id === listId
-          ? {
-              ...list,
-              tasks: list.tasks.filter((task) => task.id !== taskId),
-              updatedAt: Date.now(),
-            }
+          ? { ...list, tasks: list.tasks.filter((t) => t.id !== taskId), updatedAt: Date.now() }
           : list
       )
     );
   }, []);
 
-  /**
-   * Update a task in a list
-   */
   const updateTask = useCallback(
     (listId: string, taskId: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => {
       setLists((prev) =>
@@ -137,9 +91,7 @@ export const useShoppingLists = () => {
           list.id === listId
             ? {
                 ...list,
-                tasks: list.tasks.map((task) =>
-                  task.id === taskId ? { ...task, ...updates } : task
-                ),
+                tasks: list.tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)),
                 updatedAt: Date.now(),
               }
             : list
@@ -149,17 +101,14 @@ export const useShoppingLists = () => {
     []
   );
 
-  /**
-   * Toggle task completed status
-   */
   const toggleTaskComplete = useCallback((listId: string, taskId: string) => {
     setLists((prev) =>
       prev.map((list) =>
         list.id === listId
           ? {
               ...list,
-              tasks: list.tasks.map((task) =>
-                task.id === taskId ? { ...task, completed: !task.completed } : task
+              tasks: list.tasks.map((t) =>
+                t.id === taskId ? { ...t, completed: !t.completed } : t
               ),
               updatedAt: Date.now(),
             }
@@ -171,6 +120,7 @@ export const useShoppingLists = () => {
   return {
     lists,
     isLoading,
+    loadError,
     addList,
     deleteList,
     updateList,

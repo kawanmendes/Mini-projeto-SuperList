@@ -1,110 +1,91 @@
-/**
- * EditTaskScreen - Edit an existing task
- */
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import { useShoppingLists } from '../hooks/useShoppingLists';
+import { useShoppingListsContext } from '../context/ShoppingListsContext';
 import { Button, TextInput, Card } from '../components';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../styles/theme';
+import { formatPrice, parsePriceInput } from '../utils/helpers';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditTask'>;
 
 export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
   const { listId, taskId } = route.params;
-  const { lists, updateTask, deleteTask } = useShoppingLists();
+  const { lists, updateTask, deleteTask } = useShoppingListsContext();
 
   const task = useMemo(() => {
     const list = lists.find((l) => l.id === listId);
     return list?.tasks.find((t) => t.id === taskId);
   }, [lists, listId, taskId]);
 
-  const [title, setTitle] = useState('');
-  const [price, setPrice] = useState('');
-
-  useEffect(() => {
-    if (task) {
-      setTitle(task.title);
-      if (task.type === 'purchase' && task.price) {
-        setPrice(task.price.toString());
-      }
-    }
-  }, [task]);
+  // Lazy initializers — run once on mount, never reset by external state changes
+  const [title, setTitle] = useState(() => task?.title ?? '');
+  const [price, setPrice] = useState(() =>
+    task?.type === 'purchase' && task.price !== undefined ? task.price.toString() : ''
+  );
 
   const handleSaveTask = () => {
     if (!title.trim()) {
-      alert('Please enter a task title');
-      return;
-    }
-
-    if (task?.type === 'purchase' && !price.trim()) {
-      alert('Please enter a price');
+      Alert.alert('Validation', 'Please enter a task title');
       return;
     }
 
     let priceNumber: number | undefined;
     if (task?.type === 'purchase') {
-      const parsed = parseFloat(price.replace(/[^0-9.-]/g, ''));
-      if (isNaN(parsed) || parsed < 0) {
-        alert('Please enter a valid price');
+      if (!price.trim()) {
+        Alert.alert('Validation', 'Please enter a price');
+        return;
+      }
+      const parsed = parsePriceInput(price);
+      if (parsed === null) {
+        Alert.alert('Validation', 'Please enter a valid price');
         return;
       }
       priceNumber = parsed;
     }
 
-    updateTask(listId, taskId, {
-      title: title.trim(),
-      price: priceNumber,
-    });
-
+    updateTask(listId, taskId, { title: title.trim(), price: priceNumber });
     navigation.goBack();
   };
 
   const handleDeleteTask = () => {
-    const deleteAlert = () => {
-      deleteTask(listId, taskId);
-      navigation.goBack();
-    };
-
-    Alert.alert(
-      'Delete Task',
-      'Are you sure you want to delete this task?',
-      [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
-        {
-          text: 'Delete',
-          onPress: deleteAlert,
-          style: 'destructive',
+    Alert.alert('Delete Task', 'Are you sure you want to delete this task?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteTask(listId, taskId);
+          navigation.goBack();
         },
-      ]
-    );
-  };
-
-  const handleGoBack = () => {
-    navigation.goBack();
+      },
+    ]);
   };
 
   if (!task) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
+        <View style={styles.centered}>
           <Text style={styles.errorText}>Task not found</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backFallback}>
+            <Text style={styles.backFallbackText}>← Go back</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
+
+  const previewPrice = parsePriceInput(price);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -113,11 +94,12 @@ export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
         style={styles.flex}
       >
         <ScrollView style={styles.flex} contentContainerStyle={styles.scroll}>
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={handleGoBack}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
             >
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
@@ -125,14 +107,11 @@ export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* Task type info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Task Type</Text>
             <Card>
               <View style={styles.typeInfo}>
-                <Text style={styles.typeIcon}>
-                  {task.type === 'purchase' ? '🛒' : '📝'}
-                </Text>
+                <Text style={styles.typeIcon}>{task.type === 'purchase' ? '🛒' : '📝'}</Text>
                 <Text style={styles.typeLabel}>
                   {task.type === 'purchase' ? 'Purchase Task' : 'Simple Task'}
                 </Text>
@@ -140,7 +119,6 @@ export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
             </Card>
           </View>
 
-          {/* Task details */}
           <View style={styles.section}>
             <TextInput
               label="Task Title"
@@ -148,6 +126,7 @@ export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
               onChangeText={setTitle}
               placeholder="Enter task name..."
               maxLength={50}
+              autoCapitalize="sentences"
             />
 
             {task.type === 'purchase' && (
@@ -157,47 +136,29 @@ export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
                   value={price}
                   onChangeText={setPrice}
                   placeholder="0.00"
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   maxLength={10}
+                  autoCapitalize="none"
                 />
-                <Text style={styles.pricePrefix}>$</Text>
               </View>
             )}
           </View>
 
-          {/* Preview */}
-          {title && (
+          {title.trim().length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Preview</Text>
               <Card>
                 <View style={styles.previewContainer}>
-                  <View
-                    style={[
-                      styles.checkbox,
-                      task.completed && styles.checkboxCompleted,
-                    ]}
-                  >
-                    {task.completed && (
-                      <Text style={styles.checkmark}>✓</Text>
-                    )}
+                  <View style={[styles.checkbox, task.completed && styles.checkboxCompleted]}>
+                    {task.completed && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <View style={styles.previewContent}>
-                    <Text
-                      style={[
-                        styles.previewTitle,
-                        task.completed && styles.completedText,
-                      ]}
-                    >
+                    <Text style={[styles.previewTitle, task.completed && styles.completedText]}>
                       {title}
                     </Text>
-                    {task.type === 'purchase' && price && (
-                      <Text
-                        style={[
-                          styles.previewPrice,
-                          task.completed && styles.completedText,
-                        ]}
-                      >
-                        ${parseFloat(price).toFixed(2)}
+                    {task.type === 'purchase' && previewPrice !== null && (
+                      <Text style={[styles.previewPrice, task.completed && styles.completedText]}>
+                        {formatPrice(previewPrice)}
                       </Text>
                     )}
                   </View>
@@ -207,7 +168,6 @@ export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
           )}
         </ScrollView>
 
-        {/* Action buttons */}
         <View style={styles.footer}>
           <Button
             title="Delete"
@@ -219,14 +179,10 @@ export const EditTaskScreen: React.FC<Props> = ({ route, navigation }) => {
             <Button
               title="Cancel"
               variant="secondary"
-              onPress={handleGoBack}
-              style={styles.cancelButton}
+              onPress={() => navigation.goBack()}
+              style={styles.footerButton}
             />
-            <Button
-              title="Save"
-              onPress={handleSaveTask}
-              style={styles.saveButton}
-            />
+            <Button title="Save" onPress={handleSaveTask} style={styles.footerButton} />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -242,18 +198,26 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  scroll: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-  },
-  errorContainer: {
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: SPACING.md,
   },
   errorText: {
     color: COLORS.error,
     ...TYPOGRAPHY.body,
+  },
+  backFallback: {
+    padding: SPACING.md,
+  },
+  backFallbackText: {
+    color: COLORS.primary,
+    ...TYPOGRAPHY.body,
+  },
+  scroll: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
   },
   header: {
     flexDirection: 'row',
@@ -277,7 +241,6 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.white,
     ...TYPOGRAPHY.h3,
-    fontWeight: '600',
   },
   section: {
     marginBottom: SPACING.xl,
@@ -304,14 +267,6 @@ const styles = StyleSheet.create({
   },
   priceInputContainer: {
     marginTop: SPACING.lg,
-    position: 'relative',
-  },
-  pricePrefix: {
-    position: 'absolute',
-    right: SPACING.md,
-    top: 40,
-    color: COLORS.gray,
-    ...TYPOGRAPHY.body,
   },
   previewContainer: {
     flexDirection: 'row',
@@ -367,10 +322,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.md,
   },
-  cancelButton: {
-    flex: 1,
-  },
-  saveButton: {
+  footerButton: {
     flex: 1,
   },
 });

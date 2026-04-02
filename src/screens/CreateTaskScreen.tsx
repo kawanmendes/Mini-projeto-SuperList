@@ -1,31 +1,27 @@
-/**
- * CreateTaskScreen - Add a new task to a list
- */
-
 import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
-import { useShoppingLists } from '../hooks/useShoppingLists';
+import { RootStackParamList, TaskType } from '../types';
+import { useShoppingListsContext } from '../context/ShoppingListsContext';
 import { Button, TextInput, Card } from '../components';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../styles/theme';
+import { formatPrice, parsePriceInput } from '../utils/helpers';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateTask'>;
 
-type TaskType = 'simple' | 'purchase';
-
 export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
   const { listId } = route.params;
-  const { addTask } = useShoppingLists();
+  const { addTask } = useShoppingListsContext();
 
   const [taskType, setTaskType] = useState<TaskType>('simple');
   const [title, setTitle] = useState('');
@@ -33,38 +29,29 @@ export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleCreateTask = () => {
     if (!title.trim()) {
-      alert('Please enter a task title');
-      return;
-    }
-
-    if (taskType === 'purchase' && !price.trim()) {
-      alert('Please enter a price');
+      Alert.alert('Validation', 'Please enter a task title');
       return;
     }
 
     let priceNumber: number | undefined;
     if (taskType === 'purchase') {
-      const parsed = parseFloat(price.replace(/[^0-9.-]/g, ''));
-      if (isNaN(parsed) || parsed < 0) {
-        alert('Please enter a valid price');
+      if (!price.trim()) {
+        Alert.alert('Validation', 'Please enter a price');
+        return;
+      }
+      const parsed = parsePriceInput(price);
+      if (parsed === null) {
+        Alert.alert('Validation', 'Please enter a valid price');
         return;
       }
       priceNumber = parsed;
     }
 
-    addTask(listId, {
-      title: title.trim(),
-      type: taskType,
-      price: priceNumber,
-      completed: false,
-    });
-
+    addTask(listId, { title: title.trim(), type: taskType, price: priceNumber, completed: false });
     navigation.goBack();
   };
 
-  const handleGoBack = () => {
-    navigation.goBack();
-  };
+  const previewPrice = parsePriceInput(price);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -73,11 +60,12 @@ export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
         style={styles.flex}
       >
         <ScrollView style={styles.flex} contentContainerStyle={styles.scroll}>
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={handleGoBack}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
             >
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
@@ -85,35 +73,26 @@ export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* Task type selector */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Task Type</Text>
             <View style={styles.typeContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  taskType === 'simple' && styles.typeButtonActive,
-                ]}
-                onPress={() => setTaskType('simple')}
-              >
-                <Text style={styles.typeButtonIcon}>📝</Text>
-                <Text style={styles.typeButtonLabel}>Simple Task</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  taskType === 'purchase' && styles.typeButtonActive,
-                ]}
-                onPress={() => setTaskType('purchase')}
-              >
-                <Text style={styles.typeButtonIcon}>🛒</Text>
-                <Text style={styles.typeButtonLabel}>Purchase</Text>
-              </TouchableOpacity>
+              {(['simple', 'purchase'] as TaskType[]).map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.typeButton, taskType === type && styles.typeButtonActive]}
+                  onPress={() => setTaskType(type)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: taskType === type }}
+                >
+                  <Text style={styles.typeButtonIcon}>{type === 'simple' ? '📝' : '🛒'}</Text>
+                  <Text style={styles.typeButtonLabel}>
+                    {type === 'simple' ? 'Simple Task' : 'Purchase'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 
-          {/* Task details */}
           <View style={styles.section}>
             <TextInput
               label="Task Title"
@@ -121,6 +100,7 @@ export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
               onChangeText={setTitle}
               placeholder="Enter task name..."
               maxLength={50}
+              autoCapitalize="sentences"
             />
 
             {taskType === 'purchase' && (
@@ -130,16 +110,15 @@ export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
                   value={price}
                   onChangeText={setPrice}
                   placeholder="0.00"
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   maxLength={10}
+                  autoCapitalize="none"
                 />
-                <Text style={styles.pricePrefix}>$</Text>
               </View>
             )}
           </View>
 
-          {/* Preview */}
-          {title && (
+          {title.trim().length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Preview</Text>
               <Card>
@@ -149,8 +128,8 @@ export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
                   </View>
                   <View style={styles.previewContent}>
                     <Text style={styles.previewTitle}>{title}</Text>
-                    {taskType === 'purchase' && price && (
-                      <Text style={styles.previewPrice}>${parseFloat(price).toFixed(2)}</Text>
+                    {taskType === 'purchase' && previewPrice !== null && (
+                      <Text style={styles.previewPrice}>{formatPrice(previewPrice)}</Text>
                     )}
                   </View>
                 </View>
@@ -159,18 +138,17 @@ export const CreateTaskScreen: React.FC<Props> = ({ route, navigation }) => {
           )}
         </ScrollView>
 
-        {/* Action buttons */}
         <View style={styles.footer}>
           <Button
             title="Cancel"
             variant="secondary"
-            onPress={handleGoBack}
-            style={styles.cancelButton}
+            onPress={() => navigation.goBack()}
+            style={styles.footerButton}
           />
           <Button
             title="Create Task"
             onPress={handleCreateTask}
-            style={styles.createButton}
+            style={styles.footerButton}
           />
         </View>
       </KeyboardAvoidingView>
@@ -212,7 +190,6 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.white,
     ...TYPOGRAPHY.h3,
-    fontWeight: '600',
   },
   section: {
     marginBottom: SPACING.xl,
@@ -253,14 +230,6 @@ const styles = StyleSheet.create({
   },
   priceInputContainer: {
     marginTop: SPACING.lg,
-    position: 'relative',
-  },
-  pricePrefix: {
-    position: 'absolute',
-    right: SPACING.md,
-    top: 40,
-    color: COLORS.gray,
-    ...TYPOGRAPHY.body,
   },
   previewContainer: {
     flexDirection: 'row',
@@ -302,10 +271,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingBottom: SPACING.lg,
   },
-  cancelButton: {
-    flex: 1,
-  },
-  createButton: {
+  footerButton: {
     flex: 1,
   },
 });

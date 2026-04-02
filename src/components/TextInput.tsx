@@ -1,9 +1,13 @@
-/**
- * Reusable TextInput component
- */
-
 import React from 'react';
-import { TextInput as RNTextInput, StyleSheet, View, Text } from 'react-native';
+import {
+  TextInput as RNTextInput,
+  StyleSheet,
+  View,
+  Text,
+  StyleProp,
+  ViewStyle,
+  ReturnKeyTypeOptions,
+} from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../styles/theme';
 
 interface TextInputProps {
@@ -14,6 +18,11 @@ interface TextInputProps {
   keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'email-address';
   multiline?: boolean;
   maxLength?: number;
+  autoCorrect?: boolean;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  returnKeyType?: ReturnKeyTypeOptions;
+  onSubmitEditing?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const TextInput: React.FC<TextInputProps> = ({
@@ -24,24 +33,32 @@ export const TextInput: React.FC<TextInputProps> = ({
   keyboardType = 'default',
   multiline = false,
   maxLength,
-}) => {
-  return (
-    <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      <RNTextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.gray}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        maxLength={maxLength}
-        cursorColor={COLORS.primary}
-      />
-    </View>
-  );
-};
+  autoCorrect = false,
+  autoCapitalize = 'sentences',
+  returnKeyType = 'done',
+  onSubmitEditing,
+  style,
+}) => (
+  <View style={[styles.container, style]}>
+    {label && <Text style={styles.label}>{label}</Text>}
+    <RNTextInput
+      style={styles.input}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={COLORS.gray}
+      keyboardType={keyboardType}
+      multiline={multiline}
+      maxLength={maxLength}
+      autoCorrect={autoCorrect}
+      autoCapitalize={autoCapitalize}
+      returnKeyType={multiline ? 'default' : returnKeyType}
+      onSubmitEditing={onSubmitEditing}
+      cursorColor={COLORS.primary}
+      selectionColor={COLORS.primaryLight}
+    />
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {

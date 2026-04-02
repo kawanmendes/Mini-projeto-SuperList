@@ -1,9 +1,5 @@
-/**
- * TaskItem component - displays individual task with actions
- */
-
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert,  Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Task } from '../types';
 import { COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../styles/theme';
 import { formatPrice } from '../utils/helpers';
@@ -16,27 +12,12 @@ interface TaskItemProps {
   onDelete: () => void;
 }
 
-export const TaskItem: React.FC<TaskItemProps> = ({
-  task,
-  onToggleComplete,
-  onEdit,
-  onDelete,
-}) => {
+export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete }) => {
   const handleDelete = () => {
-    const deleteAlert = () => onDelete();
-
-    Alert.alert(
-      'Delete Task',
-      'Are you sure you want to delete this task?',
-      [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
-        {
-          text: 'Delete',
-          onPress: deleteAlert,
-          style: 'destructive',
-        },
-      ]
-    );
+    Alert.alert('Delete Task', 'Are you sure you want to delete this task?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', onPress: onDelete, style: 'destructive' },
+    ]);
   };
 
   return (
@@ -45,37 +26,25 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         <TouchableOpacity
           style={styles.checkboxContainer}
           onPress={onToggleComplete}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: task.completed }}
+          accessibilityLabel={`Mark "${task.title}" as ${task.completed ? 'incomplete' : 'complete'}`}
         >
-          <View
-            style={[
-              styles.checkbox,
-              task.completed && styles.checkboxCompleted,
-            ]}
-          >
-            {task.completed && (
-              <Text style={styles.checkMark}>✓</Text>
-            )}
+          <View style={[styles.checkbox, task.completed && styles.checkboxCompleted]}>
+            {task.completed && <Text style={styles.checkMark}>✓</Text>}
           </View>
         </TouchableOpacity>
 
         <View style={styles.content}>
           <Text
-            style={[
-              styles.title,
-              task.completed && styles.completedTitle,
-            ]}
+            style={[styles.title, task.completed && styles.completedTitle]}
             numberOfLines={2}
           >
             {task.title}
           </Text>
 
           {task.type === 'purchase' && task.price !== undefined && (
-            <Text
-              style={[
-                styles.price,
-                task.completed && styles.completedPrice,
-              ]}
-            >
+            <Text style={[styles.price, task.completed && styles.completedPrice]}>
               {formatPrice(task.price)}
             </Text>
           )}
@@ -85,6 +54,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           <TouchableOpacity
             style={[styles.actionButton, styles.editButton]}
             onPress={onEdit}
+            accessibilityRole="button"
+            accessibilityLabel="Edit task"
           >
             <Text style={styles.actionButtonText}>✏️</Text>
           </TouchableOpacity>
@@ -92,6 +63,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
             onPress={handleDelete}
+            accessibilityRole="button"
+            accessibilityLabel="Delete task"
           >
             <Text style={styles.actionButtonText}>🗑️</Text>
           </TouchableOpacity>

@@ -1,78 +1,49 @@
-/**
- * ListDetailsScreen - View and manage tasks in a specific list
- */
-
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   TouchableOpacity,
+  ListRenderItemInfo,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList, ShoppingList } from '../types';
-import { useShoppingLists } from '../hooks/useShoppingLists';
-import { TaskItem, FAB, EmptyState, Button, Card } from '../components';
+import { RootStackParamList, Task } from '../types';
+import { useShoppingListsContext } from '../context/ShoppingListsContext';
+import { TaskItem, FAB, EmptyState, Card } from '../components';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../styles/theme';
-import { calculateTotal, countCompletedTasks, formatPrice } from '../utils/helpers';
+import { countCompletedTasks, formatPrice, calculateRemainingTotal } from '../utils/helpers';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ListDetails'>;
 
 export const ListDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { listId } = route.params;
-  const {
-    lists,
-    deleteTask,
-    updateTask,
-    toggleTaskComplete,
-  } = useShoppingLists();
+  const { lists, deleteTask, toggleTaskComplete } = useShoppingListsContext();
 
   const list = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
-
-  const completedCount = useMemo(() => countCompletedTasks(list?.tasks || []), [list]);
-  const totalPrice = useMemo(() => {
-    const purchaseTasks = (list?.tasks || []).filter((t) => t.type === 'purchase' && !t.completed);
-    return calculateTotal(purchaseTasks.map((t) => t.price || 0));
-  }, [list]);
+  const completedCount = useMemo(() => countCompletedTasks(list?.tasks ?? []), [list]);
+  const remainingTotal = useMemo(() => calculateRemainingTotal(list?.tasks ?? []), [list]);
 
   if (!list) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
+        <View style={styles.centered}>
           <Text style={styles.errorText}>List not found</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backFallback}>
+            <Text style={styles.backFallbackText}>← Go back</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  const handleNavigateBack = () => {
-    navigation.goBack();
-  };
-
-  const handleAddTask = () => {
-    navigation.navigate('CreateTask', { listId });
-  };
-
-  const handleEditTask = (taskId: string) => {
-    navigation.navigate('EditTask', { listId, taskId });
-  };
-
-  const renderTaskItem = ({ item }: { item: any }) => (
+  const renderTaskItem = ({ item }: ListRenderItemInfo<Task>) => (
     <TaskItem
       task={item}
       onToggleComplete={() => toggleTaskComplete(listId, item.id)}
-      onEdit={() => handleEditTask(item.id)}
+      onEdit={() => navigation.navigate('EditTask', { listId, taskId: item.id })}
       onDelete={() => deleteTask(listId, item.id)}
-    />
-  );
-
-  const renderEmptyState = () => (
-    <EmptyState
-      icon="✓"
-      title="No Tasks Yet"
-      description="Add your first task by tapping the + button below"
     />
   );
 
@@ -81,16 +52,15 @@ export const ListDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       <View style={styles.headerContainer}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={handleNavigateBack}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.titleContainer}>
           <Text
-            style={[
-              styles.listTitle,
-              list.completed && styles.completedTitle,
-            ]}
+            style={[styles.listTitle, list.completed && styles.completedTitle]}
             numberOfLines={2}
           >
             {list.title}
@@ -101,26 +71,25 @@ export const ListDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* Summary card */}
       {list.tasks.length > 0 && (
         <Card style={styles.summaryCard}>
           <View style={styles.summaryContent}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Total Items</Text>
+              <Text style={styles.summaryLabel}>Total</Text>
               <Text style={styles.summaryValue}>{list.tasks.length}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Completed</Text>
+              <Text style={styles.summaryLabel}>Done</Text>
               <Text style={styles.summaryValue}>{completedCount}</Text>
             </View>
-            {totalPrice > 0 && (
+            {remainingTotal > 0 && (
               <>
                 <View style={styles.summaryDivider} />
                 <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Total Price</Text>
+                  <Text style={styles.summaryLabel}>Remaining</Text>
                   <Text style={[styles.summaryValue, styles.priceValue]}>
-                    {formatPrice(totalPrice)}
+                    {formatPrice(remainingTotal)}
                   </Text>
                 </View>
               </>
@@ -134,24 +103,29 @@ export const ListDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       {list.tasks.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <View style={styles.flex}>
           {renderHeader()}
-          <View style={styles.emptyStateContainer}>
-            {renderEmptyState()}
-          </View>
+          <EmptyState
+            icon="✓"
+            title="No Tasks Yet"
+            description="Add your first task by tapping the + button below"
+          />
         </View>
       ) : (
-        <FlatList
+        <FlatList<Task>
           data={list.tasks}
           renderItem={renderTaskItem}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           contentContainerStyle={styles.listContent}
-          scrollEnabled={true}
         />
       )}
 
-      <FAB onPress={handleAddTask} icon="+" />
+      <FAB
+        onPress={() => navigation.navigate('CreateTask', { listId })}
+        icon="+"
+        accessibilityLabel="Add task"
+      />
     </SafeAreaView>
   );
 };
@@ -161,22 +135,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.dark,
   },
-  errorContainer: {
+  flex: {
+    flex: 1,
+  },
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: SPACING.md,
   },
   errorText: {
     color: COLORS.error,
     ...TYPOGRAPHY.body,
   },
-  emptyContainer: {
-    flex: 1,
+  backFallback: {
+    padding: SPACING.md,
   },
-  emptyStateContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  backFallbackText: {
+    color: COLORS.primary,
+    ...TYPOGRAPHY.body,
   },
   headerContainer: {
     flexDirection: 'row',
@@ -206,7 +183,6 @@ const styles = StyleSheet.create({
   listTitle: {
     color: COLORS.white,
     ...TYPOGRAPHY.h3,
-    fontWeight: '600',
   },
   completedTitle: {
     textDecorationLine: 'line-through',
@@ -220,8 +196,6 @@ const styles = StyleSheet.create({
   summaryCard: {
     marginHorizontal: SPACING.lg,
     marginVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
   },
   summaryContent: {
     flexDirection: 'row',
@@ -240,7 +214,6 @@ const styles = StyleSheet.create({
   summaryValue: {
     color: COLORS.white,
     ...TYPOGRAPHY.h4,
-    fontWeight: '600',
   },
   priceValue: {
     color: COLORS.primary,

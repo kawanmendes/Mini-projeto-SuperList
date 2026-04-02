@@ -1,46 +1,29 @@
-/**
- * General utility functions
- */
+import * as Crypto from 'expo-crypto';
+import { Task } from '../types';
 
-/**
- * Generate a simple UUID v4
- */
-export const generateUUID = (): string => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+export const generateUUID = (): string => Crypto.randomUUID();
+
+export const formatPrice = (price: number): string =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
+
+export const calculateTotal = (prices: number[]): number =>
+  prices.reduce((sum, price) => sum + price, 0);
+
+export const formatDate = (timestamp: number): string =>
+  new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+export const countCompletedTasks = (tasks: Array<{ completed: boolean }>): number =>
+  tasks.filter((task) => task.completed).length;
+
+export const parsePriceInput = (raw: string): number | null => {
+  const parsed = parseFloat(raw.replace(/[^0-9.]/g, ''));
+  if (isNaN(parsed) || parsed < 0) return null;
+  return parsed;
 };
 
-/**
- * Format price for display
- */
-export const formatPrice = (price: number): string => {
-  return `$${price.toFixed(2)}`;
-};
-
-/**
- * Calculate total price for a list of items
- */
-export const calculateTotal = (prices: number[]): number => {
-  return prices.reduce((sum, price) => sum + price, 0);
-};
-
-/**
- * Format date for display
- */
-export const formatDate = (timestamp: number): string => {
-  const date = new Date(timestamp);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-};
-
-/**
- * Count completed tasks
- */
-export const countCompletedTasks = (tasks: Array<{ completed: boolean }>): number => {
-  return tasks.filter((task) => task.completed).length;
-};
+export const calculateRemainingTotal = (tasks: Task[]): number =>
+  calculateTotal(
+    tasks
+      .filter((t) => t.type === 'purchase' && !t.completed && t.price !== undefined)
+      .map((t) => t.price!)
+  );
